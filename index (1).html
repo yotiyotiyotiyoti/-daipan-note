@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>台パン測定ノート</title>
+<style>
+:root{--bg:#eef2f6;--card:#fff;--ink:#16202c;--sub:#5b6878;--line:#d5dde6;--acc:#1f5fbf;--accT:#fff;--peak:#d9381e;--bar:#1f5fbf;--ok:#1b7a4b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1620;--card:#18222f;--ink:#e8eef5;--sub:#9aa8b8;--line:#2a3646;--acc:#6aa4ff;--accT:#0b1420;--peak:#ff6b4d;--bar:#6aa4ff;--ok:#5fd09a}}
+:root[data-theme="dark"]{--bg:#0f1620;--card:#18222f;--ink:#e8eef5;--sub:#9aa8b8;--line:#2a3646;--acc:#6aa4ff;--accT:#0b1420;--peak:#ff6b4d;--bar:#6aa4ff;--ok:#5fd09a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;line-height:1.55;font-size:16px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+.top{position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);z-index:5;padding:12px 16px 0;border-bottom:1px solid var(--line)}
+h1{font-size:20px;margin:0 0 8px;letter-spacing:.02em}
+.tabs{display:flex;gap:4px}
+.tabs button{flex:1;padding:10px 0;font:inherit;font-weight:600;background:none;border:0;border-bottom:3px solid transparent;color:var(--sub);cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--acc)}
+main{max-width:640px;margin:0 auto;padding:16px}
+section[hidden]{display:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.card h2{font-size:15px;margin:0 0 10px}
+.peak{display:flex;align-items:flex-end;gap:14px}
+.peak .num{font-size:76px;line-height:1;font-weight:800;color:var(--peak);font-variant-numeric:tabular-nums}
+.peak .unit{font-size:18px;color:var(--sub);padding-bottom:10px}
+.now{color:var(--sub);margin:6px 0 10px;font-variant-numeric:tabular-nums}
+.meter{height:14px;background:var(--line);border-radius:7px;overflow:hidden;position:relative}
+.meter i{position:absolute;inset:0 auto 0 0;width:0;background:var(--acc)}
+.meter b{position:absolute;top:0;bottom:0;width:3px;background:var(--peak);left:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+button.btn,select,input{font:inherit;color:var(--ink)}
+button.btn{padding:11px 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);font-weight:600;cursor:pointer}
+button.pri{background:var(--acc);color:var(--accT);border-color:var(--acc)}
+button.btn:focus-visible,input:focus-visible,select:focus-visible,.tabs button:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+select,input[type=number],input[type=text]{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%}
+label{display:block;font-size:13px;color:var(--sub);margin:10px 0 4px}
+.hint{font-size:13px;color:var(--sub);margin:8px 0 0}
+.msg{min-height:1.4em;font-size:14px;margin-top:8px;color:var(--ok)}
+.msg.err{color:var(--peak)}
+.chips{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.chips button{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);font:inherit;cursor:pointer;color:var(--ink)}
+.chips button[aria-pressed="true"]{background:var(--acc);color:var(--accT);border-color:var(--acc)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:560px}
+th,td{padding:5px 4px;text-align:center;font-size:13px}
+th{color:var(--sub);font-weight:600}
+td input{padding:8px 4px;text-align:center;min-width:48px}
+td.nm input{text-align:left;min-width:100px}
+td.avg{font-weight:800;font-variant-numeric:tabular-nums;min-width:56px}
+td.x button{border:0;background:none;color:var(--sub);font-size:20px;cursor:pointer;padding:4px 8px}
+svg{width:100%;height:auto;display:block}
+svg text{fill:var(--sub);font-size:10px;font-family:inherit}
+svg .v{fill:var(--ink);font-weight:700}
+svg rect{fill:var(--bar)}
+svg line{stroke:var(--line)}
+.danger{color:var(--peak)}
+input[type=file]{width:100%;padding:10px 0;font:inherit;color:var(--ink)}
+.fres{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fres>div{background:var(--bg);border-radius:8px;padding:10px}
+.fres b{font-size:26px;font-variant-numeric:tabular-nums}
+.fres small{color:var(--sub)}
+</style>
+</head>
+<body>
+<div class="top">
+<h1>台パン測定ノート</h1>
+<div class="tabs" role="tablist">
+<button role="tab" id="t1" aria-selected="true">音を測る</button>
+<button role="tab" id="t2" aria-selected="false">記録とグラフ</button>
+</div>
+</div>
+<main>
+
+<section id="p1">
+<div class="card">
+<div class="peak"><div class="num" id="peak">--</div><div class="unit">dB（最大）</div></div>
+<div class="now">いまの音：<span id="now">--</span> dB</div>
+<div class="now">余韻（30dB下がるまで）：<span id="ldec">--</span> 秒</div>
+<div class="meter" aria-hidden="true"><i id="bar"></i><b id="pk"></b></div>
+<div class="row">
+<button class="btn pri" id="start">マイクを始める</button>
+<button class="btn" id="reset">最大値をリセット</button>
+</div>
+<div class="msg" id="mmsg"></div>
+<p class="hint">台パンの音は一瞬なので、叩いたあとも最大値が残ります。叩く前に「最大値をリセット」を押してください。</p>
+</div>
+
+<div class="card">
+<h2>最大値を記録に入れる</h2>
+<label for="csel">条件</label>
+<select id="csel"></select>
+<div class="row"><button class="btn pri" id="put">この最大値を記録する</button><button class="btn pri" id="putd">余韻を記録する</button></div>
+<label for="man">騒音計アプリの値を入れる（dB）</label>
+<input type="number" id="man" step="any" inputmode="decimal" placeholder="例：85.3">
+<div class="row"><button class="btn" id="putm">入れた値を記録する</button></div>
+<div class="msg" id="pmsg"></div>
+</div>
+
+<div class="card">
+<h2>録音ファイルから測る</h2>
+<p class="hint" style="margin-top:0">マイクが使えないときはこちら。ボイスメモなどで台パンを録音し、そのファイルを選びます。叩く前に録音を始め、叩いたあとも数秒間は止めないでください。上で選んだ条件に記録されます。</p>
+<input type="file" id="file" accept="audio/*,video/*">
+<div class="fres" id="fres" hidden>
+<div><small>最大の音（dB）</small><br><b id="fpeak">--</b><div class="row"><button class="btn" id="fputp">記録する</button></div></div>
+<div><small>余韻（秒）</small><br><b id="fdec">--</b><div class="row"><button class="btn" id="fputd">記録する</button></div></div>
+</div>
+<div class="msg" id="fmsg"></div>
+<p class="hint">余韻は、最大の音から30dB下がるまでの時間です。</p>
+</div>
+
+<div class="card">
+<h2>測り方のコツ</h2>
+<p class="hint" style="margin-top:0">スマホは叩く場所から毎回同じ距離（例：30cm）に置き、机の上ではなく別の台や三脚に置きます。手や服がマイクに触れないようにしてください。</p>
+<label for="off">補正値（dB）</label>
+<input type="number" id="off" value="90" step="1" inputmode="decimal">
+<p class="hint">画面の数字は、スマホのマイクから出した比較用の値です。正確なdBではありません。騒音計アプリと同時に測り、「アプリの値 − この画面の値」を補正値に足すと近づきます。条件どうしの比較なら、補正なしでも使えます。</p>
+</div>
+</section>
+
+<section id="p2" hidden>
+<div class="chips" id="chips"></div>
+<div class="card">
+<div class="scroll"><table>
+<thead><tr><th style="text-align:left">条件</th><th>1回目</th><th>2回目</th><th>3回目</th><th>4回目</th><th>5回目</th><th>平均</th><th></th></tr></thead>
+<tbody id="tb"></tbody>
+</table></div>
+<div class="row"><button class="btn" id="add">条件を足す</button></div>
+</div>
+
+<div class="card">
+<h2 id="ctitle">平均のグラフ</h2>
+<div id="chart"></div>
+</div>
+
+<div class="card">
+<div class="row" style="margin-top:0">
+<button class="btn" id="csv">表をコピー（CSV）</button>
+<button class="btn danger" id="clr">すべて消す</button>
+</div>
+<div class="msg" id="rmsg"></div>
+<p class="hint">データはこのスマホのブラウザに保存されます。別の端末とは共有されません。</p>
+</div>
+</section>
+
+</main>
+<script>
+(function(){
+var KEY="daipan_note_v1";
+var METRICS=[{n:"音の大きさ",u:"dB"},{n:"叩く強さ",u:"FSR値"},{n:"余韻の長さ",u:"秒"}];
+var S={conds:["マットなし","蓋","薄手マット","厚手マット"],data:null,m:0};
+function blank(){return Array(5).fill("")}
+function init(){S.data=METRICS.map(function(){return S.conds.map(blank)})}
+init();
+try{var raw=localStorage.getItem(KEY);if(raw){var o=JSON.parse(raw);if(o&&o.conds&&o.data&&o.data.length===METRICS.length){S.conds=o.conds;S.data=o.data}}}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify({conds:S.conds,data:S.data}))}catch(e){}}
+var $=function(id){return document.getElementById(id)};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+/* tabs */
+function tab(n){$("p1").hidden=n!==1;$("p2").hidden=n!==2;$("t1").setAttribute("aria-selected",n===1);$("t2").setAttribute("aria-selected",n===2);window.scrollTo(0,0);if(n===2)drawAll()}
+$("t1").onclick=function(){tab(1)};$("t2").onclick=function(){tab(2)};
+
+/* microphone */
+var ctx=null,an=null,stream=null,buf=null,raf=0,peak=-Infinity,pT=0,refL=0,dMeas=false,dec=null;
+function off(){var v=parseFloat($("off").value);return isNaN(v)?0:v}
+function setMsg(id,t,err){var e=$(id);e.textContent=t;e.className="msg"+(err?" err":"")}
+function loop(){
+  an.getFloatTimeDomainData(buf);
+  var m=0,sq=0;for(var i=0;i<buf.length;i++){var a=Math.abs(buf[i]);if(a>m)m=a;sq+=buf[i]*buf[i]}
+  var db=(m>0?20*Math.log10(m):-120)+off();
+  var lv=(sq>0?10*Math.log10(sq/buf.length):-120)+off(),t=performance.now();
+  if(db>peak){peak=db;pT=t;refL=lv;dMeas=true;dec=null;$('ldec').textContent='測定中…'}
+  if(dMeas){
+    if(t-pT<100&&lv>refL)refL=lv;
+    if(lv<refL-30){dec=(t-pT)/1000;dMeas=false;$('ldec').textContent=dec.toFixed(2)}
+    else if(t-pT>8000){dMeas=false;$('ldec').textContent='–'}
+  }
+  $("now").textContent=db.toFixed(1);
+  $("peak").textContent=peak>-100?peak.toFixed(1):"--";
+  $("bar").style.width=Math.max(0,Math.min(1,(db-20)/80))*100+"%";
+  $("pk").style.left="calc("+Math.max(0,Math.min(1,(peak-20)/80))*100+"% - 3px)";
+  raf=requestAnimationFrame(loop);
+}
+async function start(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+    var AC=window.AudioContext||window.webkitAudioContext;
+    ctx=new AC();await ctx.resume();
+    var src=ctx.createMediaStreamSource(stream);
+    an=ctx.createAnalyser();an.fftSize=1024;an.smoothingTimeConstant=0;
+    src.connect(an);buf=new Float32Array(an.fftSize);
+    $("start").textContent="マイクを止める";setMsg("mmsg","測定中です。");loop();
+  }catch(e){
+    setMsg("mmsg","マイクを使えませんでした。このページでは許可されない場合があります。下の「録音ファイルから測る」か「騒音計アプリの値を入れる」を使ってください。",true);
+  }
+}
+function stop(){
+  cancelAnimationFrame(raf);
+  if(stream)stream.getTracks().forEach(function(t){t.stop()});
+  if(ctx)ctx.close();
+  ctx=null;stream=null;
+  $("start").textContent="マイクを始める";setMsg("mmsg","止めました。");
+}
+$("start").onclick=function(){ctx?stop():start()};
+$("reset").onclick=function(){peak=-Infinity;dec=null;dMeas=false;$('ldec').textContent='--';$("peak").textContent="--";$("pk").style.left="0";setMsg("pmsg","")};
+
+/* put peak into table */
+function fillSel(){
+  var cur=$("csel").value;
+  $("csel").innerHTML=S.conds.map(function(c,i){return'<option value="'+i+'">'+esc(c)+"</option>"}).join("");
+  if(cur&&cur<S.conds.length)$("csel").value=cur;
+}
+function putVal(v){
+  var ci=+$("csel").value,row=S.data[0][ci],k=row.indexOf("");
+  if(k<0){setMsg("pmsg","「"+S.conds[ci]+"」の5回分は埋まっています。記録タブで直せます。",true);return false}
+  row[k]=v.toFixed(1);save();
+  setMsg("pmsg","「"+S.conds[ci]+"」の"+(k+1)+"回目に "+v.toFixed(1)+" dB を記録しました。");
+  return true;
+}
+$("put").onclick=function(){
+  if(!(peak>-100)){setMsg("pmsg","最大値がまだありません。マイクを始めて、台パンしてください。",true);return}
+  putVal(peak);
+};
+$("putm").onclick=function(){
+  var v=parseFloat($("man").value);
+  if(isNaN(v)){setMsg("pmsg","数字を入れてください。",true);return}
+  if(putVal(v))$("man").value="";
+};
+
+$('putd').onclick=function(){
+  if(dec===null){setMsg('pmsg','余韻がまだ出ていません。台パンして、数秒そのまま静かにしてください。',true);return}
+  var ci=+$('csel').value,row=S.data[2][ci],k=row.indexOf('');
+  if(k<0){setMsg('pmsg','「'+S.conds[ci]+'」の5回分は埋まっています。記録タブで直せます。',true);return}
+  row[k]=dec.toFixed(2);save();
+  setMsg('pmsg','「'+S.conds[ci]+'」の'+(k+1)+'回目に余韻 '+dec.toFixed(2)+' 秒を記録しました。');
+};
+
+/* recorded file analysis */
+var FA={p:null,d:null};
+function putFile(mi,val,label){
+  var ci=+$('csel').value,row=S.data[mi][ci],k=row.indexOf('');
+  if(k<0){setMsg('fmsg','「'+S.conds[ci]+'」の5回分は埋まっています。記録タブで直せます。',true);return}
+  row[k]=val;save();
+  setMsg('fmsg','「'+S.conds[ci]+'」の'+(k+1)+'回目に'+label+' '+val+' を記録しました。');
+}
+$('file').onchange=function(e){
+  var f=e.target.files[0];if(!f)return;
+  setMsg('fmsg','読み込み中です…');$('fres').hidden=true;
+  var AC=window.AudioContext||window.webkitAudioContext;
+  f.arrayBuffer().then(function(ab){
+    var c=new AC();
+    return new Promise(function(res,rej){c.decodeAudioData(ab,res,rej)}).then(function(b){c.close();return b});
+  }).then(function(buf){
+    var d=buf.getChannelData(0),sr=buf.sampleRate,m=0,mi=0,i;
+    for(i=0;i<d.length;i++){var a=Math.abs(d[i]);if(a>m){m=a;mi=i}}
+    if(!(m>0))throw new Error('silent');
+    var w=Math.max(1,Math.round(sr*0.01));
+    function rms(s){var e2=Math.min(d.length,s+w),t=0;for(var j=s;j<e2;j++)t+=d[j]*d[j];return Math.sqrt(t/Math.max(1,e2-s))}
+    var s0=Math.floor(mi/w)*w,ref=20*Math.log10(rms(s0)||1e-9),dec=null;
+    for(var p=s0;p<d.length;p+=w){var r=20*Math.log10(rms(p)||1e-9);if(r<ref-30){dec=(p-s0)/sr;break}}
+    FA.p=(20*Math.log10(m)+off()).toFixed(1);
+    FA.d=dec===null?null:dec.toFixed(2);
+    $('fpeak').textContent=FA.p;
+    $('fdec').textContent=FA.d===null?'–':FA.d;
+    $('fres').hidden=false;
+    setMsg('fmsg',FA.d===null?'最大の音は測れましたが、余韻は録音の終わりまでに30dB下がらず出せませんでした。叩いたあとも静かな時間を長めに録音してください。':'読み込みました。');
+  }).catch(function(){
+    setMsg('fmsg','このファイルは読み込めませんでした。ボイスメモなどの音声ファイルを選んでください。',true);
+  });
+  e.target.value='';
+};
+$('fputp').onclick=function(){if(FA.p!==null)putFile(0,FA.p,'音の大きさ')};
+$('fputd').onclick=function(){if(FA.d!==null)putFile(2,FA.d,'余韻の長さ')};
+
+/* record table */
+function avg(arr){var v=arr.map(parseFloat).filter(function(x){return!isNaN(x)});return v.length?v.reduce(function(a,b){return a+b},0)/v.length:null}
+function fmt(x){return x===null?"–":(Math.round(x*10)/10).toString()}
+function chips(){
+  $("chips").innerHTML=METRICS.map(function(m,i){return'<button data-m="'+i+'" aria-pressed="'+(i===S.m)+'">'+m.n+"（"+m.u+"）</button>"}).join("");
+}
+function table(){
+  $("tb").innerHTML=S.conds.map(function(c,i){
+    var cells=S.data[S.m][i].map(function(v,k){return'<td><input type="number" step="any" inputmode="decimal" data-c="'+i+'" data-k="'+k+'" value="'+esc(v)+'" aria-label="'+esc(c)+" "+(k+1)+'回目"></td>'}).join("");
+    return'<tr><td class="nm"><input type="text" data-n="'+i+'" value="'+esc(c)+'" aria-label="条件名"></td>'+cells+'<td class="avg" id="a'+i+'">'+fmt(avg(S.data[S.m][i]))+'</td><td class="x"><button data-d="'+i+'" aria-label="この条件を消す">×</button></td></tr>';
+  }).join("");
+}
+function chart(){
+  var M=METRICS[S.m],n=S.conds.length;
+  $("ctitle").textContent=M.n+"の平均（"+M.u+"）";
+  var av=S.conds.map(function(c,i){return avg(S.data[S.m][i])});
+  var mx=Math.max.apply(null,av.map(function(x){return x===null?0:x}));
+  if(!(mx>0)){$("chart").innerHTML='<p class="hint">数字を入れると、ここに棒グラフが出ます。</p>';return}
+  var W=340,H=200,L=10,B=34,T=22,pw=W-L*2,bw=Math.min(48,pw/n*.6),g=pw/n,top=mx*1.1,s='<svg viewBox="0 0 '+W+" "+H+'" role="img" aria-label="条件ごとの平均の棒グラフ"><line x1="'+L+'" x2="'+(W-L)+'" y1="'+(H-B)+'" y2="'+(H-B)+'"/>';
+  av.forEach(function(x,i){
+    var cx=L+g*i+g/2;
+    if(x!==null){var h=(H-B-T)*x/top;s+='<rect x="'+(cx-bw/2)+'" y="'+(H-B-h)+'" width="'+bw+'" height="'+h+'" rx="3"/><text class="v" x="'+cx+'" y="'+(H-B-h-5)+'" text-anchor="middle">'+fmt(x)+"</text>"}
+    var nm=S.conds[i];if(nm.length>6)nm=nm.slice(0,6)+"…";
+    s+='<text x="'+cx+'" y="'+(H-B+14)+'" text-anchor="middle">'+esc(nm)+"</text>";
+  });
+  $("chart").innerHTML=s+"</svg>";
+}
+function drawAll(){chips();table();chart();fillSel()}
+function calc(){
+  S.conds.forEach(function(c,i){var e=$("a"+i);if(e)e.textContent=fmt(avg(S.data[S.m][i]))});
+  chart();
+}
+$("chips").onclick=function(e){var b=e.target.closest("button");if(!b)return;S.m=+b.dataset.m;drawAll()};
+$("tb").addEventListener("input",function(e){
+  var t=e.target;
+  if(t.dataset.n!==undefined){S.conds[+t.dataset.n]=t.value}
+  else if(t.dataset.c!==undefined){S.data[S.m][+t.dataset.c][+t.dataset.k]=t.value}
+  save();calc();
+});
+$("tb").addEventListener("click",function(e){
+  var b=e.target.closest("button[data-d]");if(!b)return;
+  if(S.conds.length<=1){setMsg("rmsg","条件は1つ以上必要です。",true);return}
+  var i=+b.dataset.d;S.conds.splice(i,1);S.data.forEach(function(d){d.splice(i,1)});save();drawAll();
+});
+$("add").onclick=function(){
+  if(S.conds.length>=8){setMsg("rmsg","条件は8つまでです。",true);return}
+  S.conds.push("条件"+(S.conds.length+1));S.data.forEach(function(d){d.push(blank())});save();drawAll();
+};
+
+/* csv and clear */
+$("csv").onclick=function(){
+  var out=[];
+  METRICS.forEach(function(M,mi){
+    out.push(M.n+"（"+M.u+"）");out.push("条件,1回目,2回目,3回目,4回目,5回目,平均");
+    S.conds.forEach(function(c,i){out.push([c].concat(S.data[mi][i],[fmt(avg(S.data[mi][i]))]).join(","))});
+    out.push("");
+  });
+  var text=out.join("\n");
+  function fallback(){var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();var ok=false;try{ok=document.execCommand("copy")}catch(e){}document.body.removeChild(ta);setMsg("rmsg",ok?"コピーしました。ExcelやメモにPasteできます。":"コピーできませんでした。",!ok)}
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){setMsg("rmsg","コピーしました。ExcelやメモにPasteできます。")},fallback)}else fallback();
+};
+var armed=false,tm=0;
+$("clr").onclick=function(){
+  if(!armed){armed=true;$("clr").textContent="もう一度押すと全部消えます";tm=setTimeout(function(){armed=false;$("clr").textContent="すべて消す"},4000);return}
+  clearTimeout(tm);armed=false;$("clr").textContent="すべて消す";
+  S.conds=["マットなし","蓋","薄手マット","厚手マット"];init();save();drawAll();setMsg("rmsg","消しました。");
+};
+fillSel();
+})();
+</script>
+</body>
+</html>
