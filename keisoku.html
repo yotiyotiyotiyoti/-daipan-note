@@ -152,7 +152,8 @@ input[type=file]{width:100%;padding:10px 0;font:inherit;color:var(--ink)}
 <div class="card">
 <h2>保存と読み込み</h2>
 <div class="row" style="margin-top:0">
-<button class="btn pri" id="savej">保存ファイルを作る</button>
+<button class="btn pri" id="savex">Excelで保存（.xlsx）</button>
+<button class="btn" id="savej">バックアップ（.json）</button>
 <button class="btn" id="savec">CSVを保存</button>
 <button class="btn" id="csv">表をコピー（CSV）</button>
 </div>
@@ -160,7 +161,7 @@ input[type=file]{width:100%;padding:10px 0;font:inherit;color:var(--ink)}
 <input type="file" id="loadj" accept="application/json,.json">
 <div class="row"><button class="btn danger" id="clr">すべて消す</button></div>
 <div class="msg" id="rmsg"></div>
-<p class="hint">データはこの端末のブラウザにも残りますが、履歴を消すと消えることがあります。測定したら「保存ファイルを作る」でバックアップしてください。読み込みは、同じ条件名・同じ○回目どうしを合体し、すでに入っている数字は変えません。スマホで測った音と、PCで測った叩く強さを、1つの表にまとめるときに使えます。</p>
+<p class="hint">データはこの端末のブラウザにも残りますが、履歴を消すと消えることがあります。測定したら保存してください。Excelファイルは「記録」（1回ごとに1行）と「平均」の2枚のシートになります。ただしExcelファイルは読み込めないので、あとでアプリに戻したいときは「バックアップ（.json）」も作ってください。読み込みは、同じ条件名・同じ○回目どうしを合体し、すでに入っている数字は変えません。スマホで測った音と、PCで測った叩く強さを、1つの表にまとめるときに使えます。</p>
 </div>
 </section>
 
@@ -423,7 +424,7 @@ $("sbtn").onclick=async function(){
 /* save and load */
 function stamp(){var d=new Date(),p=function(n){return(n<10?"0":"")+n};return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())}
 function download(name,text,type){
-  var b=new Blob([text],{type:type}),a=document.createElement("a");
+  var b=text instanceof Blob?text:new Blob([text],{type:type}),a=document.createElement("a");
   a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();
   setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},1500);
 }
@@ -435,6 +436,73 @@ $("savec").onclick=function(){
   download("daipan_"+stamp()+".csv","﻿"+csvText(),"text/csv");
   setMsg("rmsg","CSVを作りました。Excelで開けます。");
 };
+/* xlsx (no library: minimal zip + xml) */
+var CRC=(function(){var t=[],c,n,k;for(n=0;n<256;n++){c=n;for(k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){var c=0xFFFFFFFF;for(var i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zipStore(files){
+  var enc=new TextEncoder(),parts=[],central=[],offset=0;
+  files.forEach(function(f){
+    var nm=enc.encode(f.name),data=enc.encode(f.text),crc=crc32(data),sz=data.length;
+    var lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(12,0x21,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,sz,true);lh.setUint32(22,sz,true);lh.setUint16(26,nm.length,true);
+    parts.push(new Uint8Array(lh.buffer),nm,data);
+    var ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(14,0x21,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,sz,true);ch.setUint32(24,sz,true);ch.setUint16(28,nm.length,true);ch.setUint32(42,offset,true);
+    central.push(new Uint8Array(ch.buffer),nm);
+    offset+=30+nm.length+sz;
+  });
+  var csz=0;central.forEach(function(c){csz+=c.length});
+  var end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);end.setUint32(12,csz,true);end.setUint32(16,offset,true);
+  return new Blob(parts.concat(central,[new Uint8Array(end.buffer)]),{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function xesc(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function xcell(r,c,v,style,forceText){
+  if(v===""||v===null||v===undefined)return"";
+  var ref=String.fromCharCode(65+c)+(r+1),s=style?' s="'+style+'"':"";
+  if(!forceText&&/^-?\d+(\.\d+)?$/.test(String(v)))return'<c r="'+ref+'"'+s+'><v>'+Number(v)+"</v></c>";
+  return'<c r="'+ref+'"'+s+' t="inlineStr"><is><t>'+xesc(v)+"</t></is></c>";
+}
+function xsheet(rows,widths){
+  var x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>'+
+    widths.map(function(w,i){return'<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>'}).join("")+"</cols><sheetData>";
+  rows.forEach(function(row,r){x+='<row r="'+(r+1)+'">'+row.map(function(v,c){return xcell(r,c,v,r===0?1:0,c===0)}).join("")+"</row>"});
+  return x+"</sheetData></worksheet>";
+}
+function xlsxBlob(){
+  var head=["条件","回"].concat(METRICS.map(function(m){return m.n+"（"+m.u+"）"}));
+  var rec=[head];
+  S.conds.forEach(function(c,i){
+    for(var k=0;k<5;k++){
+      var vals=METRICS.map(function(m,mi){return S.data[mi][i][k]});
+      if(vals.every(function(v){return v===""}))continue;
+      rec.push([c,k+1].concat(vals));
+    }
+  });
+  var av=[["条件"].concat(METRICS.map(function(m){return m.n+"の平均（"+m.u+"）"}))];
+  S.conds.forEach(function(c,i){
+    av.push([c].concat(METRICS.map(function(m,mi){var a=avg(S.data[mi][i]);return a===null?"":Math.round(a*100)/100})));
+  });
+  var NS='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"';
+  var H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  var w1=[16,6].concat(METRICS.map(function(){return 20})),w2=[16].concat(METRICS.map(function(){return 24}));
+  return zipStore([
+    {name:"[Content_Types].xml",text:H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+    {name:"_rels/.rels",text:H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name:"xl/workbook.xml",text:H+'<workbook '+NS+' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="記録" sheetId="1" r:id="rId1"/><sheet name="平均" sheetId="2" r:id="rId2"/></sheets></workbook>'},
+    {name:"xl/_rels/workbook.xml.rels",text:H+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
+    {name:"xl/styles.xml",text:H+'<styleSheet '+NS+'><fonts count="2"><font><sz val="11"/><name val="Yu Gothic"/></font><font><b/><sz val="11"/><name val="Yu Gothic"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>'},
+    {name:"xl/worksheets/sheet1.xml",text:xsheet(rec,w1)},
+    {name:"xl/worksheets/sheet2.xml",text:xsheet(av,w2)}
+  ]);
+}
+$("savex").onclick=function(){
+  download("daipan_"+stamp()+".xlsx",xlsxBlob());
+  setMsg("rmsg","Excelファイルを作りました。ダウンロード（ファイル）を確認してください。");
+};
+
 function mergeIn(o){
   if(!o||!Array.isArray(o.conds)||!Array.isArray(o.data))throw new Error("bad");
   var added=0;
